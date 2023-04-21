@@ -6,7 +6,7 @@ import { fileURLToPath } from "url"
 
 const Post = db.post;
 const PostCategory = db.postCategory;
-
+const Partner = db.partner;
 
 export const create = async (req, res) => {
 
@@ -48,7 +48,7 @@ export const create = async (req, res) => {
 
 export const getAll = async (req, res) => {
   await Post.findAll({
-    include: [{ model: PostCategory }],
+    include: [{ model: PostCategory },{model: Partner}],
   })
     .then((data) => {
       res.status(200).send(data);

@@ -1,44 +1,31 @@
 import { hash, compareSync } from "bcrypt";
-import jwt from "jsonwebtoken";
 import db from "../models/index.js";
 import ApiError from "../error/ApiError.js";
 import { Op } from "sequelize";
+import { generateJwtAdmin } from "../utils/generatarJwt.js";
 const Admin = db.admin;
-const Role = db.role;
+const Partner = db.partner;
 
-const generateJwt = (id, email, phone, partnerId ) => {
-  return jwt.sign({ id, email, phone, partnerId }, process.env.SECRET_KEY, {
-    expiresIn: "24h",
-  });
-};
+
 
 export const login = async (req, res, next) => {
-  console.log("hello1");
+  console.log(req);
   const { login, password } = req.body;
   const admin = await Admin.findOne({
-    where: { login },
-    include: [
-      {
-        model: Role,
-      },
-    ],
+    where: { login: login },
   });
 
 
   if (!admin) {
-    return next(ApiError.internal("Incorrect login or password"));
+    return next(ApiError.internal("Неправильний логін або пароль"));
   }
   let comparePassword = compareSync(password, admin.password);
   if (!comparePassword) {
-    return next(ApiError.internal("Incorrect login or password"));
+    return next(ApiError.internal("Неправильний логін або пароль"));
   }
-  const token = generateJwt(admin.id, admin.email, admin.phone, admin.partnerId);
-  res.status(200).send({ token });
-};
+  const token = generateJwtAdmin(admin.id,admin.partnerId,admin.login);
+  res.status(200).send({token});
 
-export const check = async (req, res, next) => {
-  const token = generateJwt(req.admin.id, req.admin.email, req.admin.phone, req.admin.partnerId);
-  res.status(200).send({ token });
 };
 
 export const create = async (req, res, next) => {
@@ -53,20 +40,22 @@ export const create = async (req, res, next) => {
 
   };
 
-  if (!newAdmin.login || !newAdmin.password) {
-    return next(ApiError.badRequest("Incorrect email or password"));
-  }
-  await Admin.findOne({ where: { phone: newAdmin.phone } }).then((candidate) => {
+  await Admin.findOne({ where: { login: newAdmin.login } }).then((candidate) => {
     if (candidate) {
-      return next(ApiError.badRequest("This admin is already exist"));
+      return next(ApiError.badRequest("Дані не вірні"));
     }
   });
 
   const hashPassword = await hash(newAdmin.password, 5);
   newAdmin.password = hashPassword;
-  const admin = await Admin.create(newAdmin);
-  // const token = generateJwt(admin.id, admin.email, admin.role.name);
-  // res.status(200).send({ token });
+  await Admin.create(newAdmin).then((data)=>{
+    res.status(200).send({
+      message: "Admin was added successfully!",
+    });
+    return;
+  }).catch((err)=>{
+    return next(ApiError.badRequest("Спробуйте пізніше"));
+  });
 };
 
 export const getAll = async (req, res) => {
@@ -74,7 +63,7 @@ export const getAll = async (req, res) => {
     where: { partnerId: { [Op.ne]: null } },
     include: [
       {
-        model: Role,
+        model: Partner,
       },
     ],
   })

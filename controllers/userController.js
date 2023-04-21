@@ -1,14 +1,8 @@
 import { hash, compareSync } from "bcrypt";
-import jwt from "jsonwebtoken";
 import db from "../models/index.js";
 import ApiError from "../error/ApiError.js";
+import { generateJwtAdmin, generateJwtUser } from "../utils/generatarJwt.js";
 const User = db.user;
-
-const generateJwt = (id) => {
-  return jwt.sign({ id }, process.env.SECRET_KEY, {
-    expiresIn: "24h",
-  });
-};
 
 export const login = async (req, res, next) => {
   const { phone, password } = req.body;
@@ -17,23 +11,31 @@ export const login = async (req, res, next) => {
   });
 
   if (!user) {
-    return next(ApiError.internal("Incorrect phone or password"));
+    return next(ApiError.internal("Неправильний номер або пароль"));
   }
   let comparePassword = compareSync(password, user.password);
   if (!comparePassword) {
-    return next(ApiError.internal("Incorrect phone or password"));
+    return next(ApiError.internal("Неправильний номер або пароль"));
   }
-  const token = generateJwt(user.id);
+  const token = generateJwtUser(user.id);
   res.status(200).send({ token });
 };
 
 export const check = async (req, res, next) => {
-  const token = generateJwt(req.user.id);
-  res.status(200).send({ token });
+  if (Boolean("partnerId" in req.user)) {
+    const token = generateJwtAdmin(
+      req.user.id,
+      req.user.partnerId,
+      req.user.login
+    );
+    res.status(200).send({ token });
+  } else {
+    const token = generateJwtUser(req.user.id);
+    res.status(200).send({ token });
+  }
 };
 
 export const create = async (req, res, next) => {
-
   const newUser = {
     phone: req.body.phone,
     password: req.body.password,
@@ -52,14 +54,16 @@ export const create = async (req, res, next) => {
 
   const hashPassword = await hash(newUser.password, 5);
   newUser.password = hashPassword;
-  await User.create(newUser).then((user)=>{
-    const token = generateJwt(user.id);
-    res.status(200).send({ token });
-  }).catch((err)=>{
-    console.log(err);
-    return next(ApiError.badRequest("Спробуйте пізніше"));
-  });
-
+  await User.create(newUser)
+    .then((user) => {
+      const token = generateJwtUser(user.id);
+      res.status(200).send({ token });
+      return;
+    })
+    .catch((err) => {
+      console.log(err);
+      return next(ApiError.badRequest("Спробуйте пізніше"));
+    });
 };
 
 export const destroy = async (req, res) => {
