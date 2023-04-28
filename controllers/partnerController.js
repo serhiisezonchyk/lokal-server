@@ -6,24 +6,10 @@ import { fileURLToPath } from "url"
 const Partner = db.partner;
 
 export const create = async (req, res) => {
-  //upload images
-  const { imgs } = req.files;
-  const fileNames = await Promise.all(imgs.map(async (img) => {
-    const fileName = v4() + ".jpg";
-    await img.mv(
-      resolve(
-        path.dirname(fileURLToPath(import.meta.url)),
-        "..",
-        "static",
-        fileName
-      )
-    );
-    return fileName;
-  }));
 
   const partner = {
     name: req.body.name,
-    img: fileNames,
+    img: req.body.img,
     email: req.body.email,
     description: req.body.description,
   };
